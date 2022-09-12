@@ -1,0 +1,17 @@
+# gradle
+.gradle/
+gradle/
+gradlew
+*.bat
+build
+
+
+# idea config
+.idea
+
+# course config files
+*.yaml
+/Pawns-Only Chess/*
+!/Pawns-Only Chess/task/
+/Pawns-Only Chess/task/*
+!/Pawns-Only Chess/task/src/
