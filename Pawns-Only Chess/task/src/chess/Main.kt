@@ -3,7 +3,6 @@ package chess
 fun main() {
     val chess = Chess()
     chess.greeting()
-    chess.printChessBoard()
     chess.run()
 }
 
@@ -14,31 +13,134 @@ class Chess {
         const val MAX_BOUND = 8
         const val MIN_FILE = 'a'
         const val MAX_FILE = 'h'
-        val turnPattern = Regex("^([a-h][1-8]){2}|exit$")
+        private val firstPlayer: State = FirstPlayer()
+        private val secondPlayer: State = SecondPlayer()
     }
 
-    private val whitePawns: List<Pair<Char, Int>> = (MIN_FILE..MAX_FILE).map { Pair(it, 2) }
-    private val blackPawns: List<Pair<Char, Int>> = (MIN_FILE..MAX_FILE).map { Pair(it, 7) }
+    data class Position(val file: Char, val rank: Int) {
+        override fun toString(): String {
+            return "$file$rank"
+        }
+    }
 
-    private var firstPlayerName: String = "First Player"
-    private var secondPlayerName: String = "Second Player"
+    abstract class State {
+        companion object {
+            private val turnPattern = Regex("^([a-h][1-8]){2}|exit$")
+        }
+        abstract var isExit: Boolean
+        abstract val color: String
+        abstract val initialRank: Int
+        abstract var playerName: String
+        abstract val pawns: MutableList<Position>
+
+        open fun isValid(s: String): Boolean {
+            if ("exit" == s) {
+                isExit = true
+                return true
+            }
+            if (!turnPattern.matches(s)) {
+                println("Invalid Input")
+                return false
+            }
+            val start = Position(s[0], s[1].toString().toInt())
+            if (!pawns.contains(start)) {
+                println("No $color pawn at $start")
+                return false
+            }
+            return true
+        }
+
+        fun readTurn() {
+            do {
+                println("$playerName's turn:")
+                val turn = readln()
+                val isValid = isValid(turn)
+                if (isValid && !isExit) {
+                    val start = Position(turn[0], turn[1].toString().toInt())
+                    val end = Position(turn[2], turn[3].toString().toInt())
+                    pawns[pawns.indexOf(start)] = end
+                }
+            } while (!isValid)
+        }
+
+        abstract fun next(): State
+    }
+
+    private class FirstPlayer: State() {
+        override var isExit: Boolean = false
+        override val color = "white"
+        override val initialRank: Int = 2
+        override var playerName: String = "First Player"
+        override val pawns: MutableList<Position> = (MIN_FILE..MAX_FILE).map { Position(it, 2) }.toMutableList()
+        override fun next(): State = secondPlayer
+
+        override fun isValid(s: String): Boolean {
+            if (super.isValid(s)) {
+                if (isExit) return true
+                val start = Position(s[0], s[1].toString().toInt())
+                val end = Position(s[2], s[3].toString().toInt())
+                if (start.file == end.file) {
+                    val diff = end.rank - start.rank
+                    val isBusyPos = next().pawns.contains(Position(end.file, end.rank))
+                            || next().pawns.contains(Position(end.file, end.rank - 1))
+                    if (!isBusyPos && (1 == diff || (start.rank == initialRank && 2 == diff))) {
+                        return true
+                    }
+                }
+                println("Invalid Input")
+                return false
+            }
+            return false
+        }
+    }
+
+    private class SecondPlayer: State() {
+        override var isExit: Boolean = false
+        override val color = "black"
+        override val initialRank: Int = 7
+        override var playerName: String = "Second Player"
+        override val pawns: MutableList<Position> = (MIN_FILE..MAX_FILE).map { Position(it, 7) }.toMutableList()
+        override fun next(): State = firstPlayer
+        override fun isValid(s: String): Boolean {
+            if (super.isValid(s)) {
+                if (isExit) return true
+                val start = Position(s[0], s[1].toString().toInt())
+                val end = Position(s[2], s[3].toString().toInt())
+                if (start.file == end.file) {
+                    val diff = start.rank - end.rank
+                    val isBusyPos = next().pawns.contains(Position(end.file, end.rank))
+                            || next().pawns.contains(Position(end.file, end.rank + 1))
+                    if (!isBusyPos && (1 == diff || (start.rank == initialRank && 2 == diff))) {
+                        return true
+                    }
+                }
+                println("Invalid Input")
+                return false
+            }
+            return false
+        }
+    }
+
+
+    private var state = secondPlayer
 
     fun greeting() {
         println("Pawns-Only Chess")
         println("First Player's name:")
-        firstPlayerName = readln()
+        firstPlayer.playerName = readln()
         println("Second Player's name:")
-        secondPlayerName = readln()
+        secondPlayer.playerName = readln()
+        printChessBoard()
     }
 
-    fun printChessBoard() {
+    private fun printChessBoard() {
         for (rank in MAX_BOUND downTo MIN_BOUND) {
             println("  ".plus("+---".repeat(MAX_BOUND)).plus("+"))
             print("$rank ")
             for (file in MIN_FILE..MAX_FILE) {
                 print("| ")
-                val position = Pair(file, rank)
-                print(if (position in whitePawns) 'W' else if (position in blackPawns) 'B' else ' ')
+                val position = Position(file, rank)
+                print(if (position in firstPlayer.pawns) 'W' else if (position in secondPlayer.pawns) 'B' else ' ')
                 print(' ')
             }
             println('|')
@@ -48,27 +150,16 @@ class Chess {
     }
 
     fun run() {
+        state = secondPlayer
         do {
-            val firstPlayerMove = playerInput("$firstPlayerName's turn:")
-            if (firstPlayerMove == "exit") break
-            val secondPlayerMove = playerInput("$secondPlayerName's turn:")
-            if (secondPlayerMove == "exit") break
-        } while (true)
+            state = state.next()
+            state.readTurn()
+            if (!state.isExit) {
+                printChessBoard()
+            }
+        } while (!state.isExit)
         println("Bye!")
     }
 
-    private fun playerInput(prompt: String): String {
-        var isValid: Boolean
-        var turn: String
-        do {
-            println(prompt)
-            turn = readln()
-            isValid = turnPattern.matches(turn)
-            if (!isValid) {
-                println("Invalid Input")
-            }
-        } while (!isValid)
-        return turn
-    }
 
 }
