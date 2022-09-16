@@ -8,7 +8,7 @@ fun main() {
 
 
 class Chess {
-    companion object {
+    private companion object {
         const val MIN_BOUND = 1
         const val MAX_BOUND = 8
         const val MIN_FILE = 'a'
@@ -28,10 +28,12 @@ class Chess {
             private val turnPattern = Regex("^([a-h][1-8]){2}|exit$")
         }
         abstract var isExit: Boolean
-        abstract val color: String
-        abstract val initialRank: Int
+        protected abstract val color: String
+        protected abstract val initialRank: Int
         abstract var playerName: String
         abstract val pawns: MutableList<Position>
+        protected var captured: Position? = null
+        var enPassant: Position? = null
 
         open fun isValid(s: String): Boolean {
             if ("exit" == s) {
@@ -58,6 +60,8 @@ class Chess {
                 if (isValid && !isExit) {
                     val start = Position(turn[0], turn[1].toString().toInt())
                     val end = Position(turn[2], turn[3].toString().toInt())
+                    enPassant = if (kotlin.math.abs(end.rank - start.rank) == 2) end else null
+                    next().pawns.remove(captured)
                     pawns[pawns.indexOf(start)] = end
                 }
             } while (!isValid)
@@ -80,10 +84,33 @@ class Chess {
                 val start = Position(s[0], s[1].toString().toInt())
                 val end = Position(s[2], s[3].toString().toInt())
                 if (start.file == end.file) {
+                    // move forward
                     val diff = end.rank - start.rank
-                    val isBusyPos = next().pawns.contains(Position(end.file, end.rank))
+                    val isBusyPos = next().pawns.contains(end)
                             || next().pawns.contains(Position(end.file, end.rank - 1))
                     if (!isBusyPos && (1 == diff || (start.rank == initialRank && 2 == diff))) {
+                        return true
+                    }
+                } else if (end.file - 1 == start.file && end.rank - 1 == start.rank) {
+                    // capture left
+                    if (next().pawns.contains(end)) {
+                        captured = end
+                        return true
+                    }
+                    // en passant left
+                    if (next().enPassant?.rank == start.rank && next().enPassant?.file == end.file) {
+                        captured = next().enPassant
+                        return true
+                    }
+                } else if (end.file + 1 == start.file && end.rank - 1 == start.rank) {
+                    // capture right
+                    if (next().pawns.contains(end)) {
+                        captured = end
+                        return true
+                    }
+                    // en passant right
+                    if (next().enPassant?.rank == start.rank && next().enPassant?.file == end.file) {
+                        captured = next().enPassant
                         return true
                     }
                 }
@@ -107,10 +134,33 @@ class Chess {
                 val start = Position(s[0], s[1].toString().toInt())
                 val end = Position(s[2], s[3].toString().toInt())
                 if (start.file == end.file) {
+                    // move forward
                     val diff = start.rank - end.rank
-                    val isBusyPos = next().pawns.contains(Position(end.file, end.rank))
+                    val isBusyPos = next().pawns.contains(end)
                             || next().pawns.contains(Position(end.file, end.rank + 1))
                     if (!isBusyPos && (1 == diff || (start.rank == initialRank && 2 == diff))) {
+                        return true
+                    }
+                } else if (end.file - 1 == start.file && end.rank + 1 == start.rank) {
+                    // capture left
+                    if (next().pawns.contains(end)) {
+                        captured = end
+                        return true
+                    }
+                    // en passant left
+                    if (next().enPassant?.rank == start.rank && next().enPassant?.file == end.file) {
+                        captured = next().enPassant
+                        return true
+                    }
+                } else if (end.file + 1 == start.file && end.rank + 1 == start.rank) {
+                    // capture right
+                    if (next().pawns.contains(end)) {
+                        captured = end
+                        return true
+                    }
+                    // en passant right
+                    if (next().enPassant?.rank == start.rank && next().enPassant?.file == end.file) {
+                        captured = next().enPassant
                         return true
                     }
                 }
