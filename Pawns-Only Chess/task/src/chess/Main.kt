@@ -24,12 +24,10 @@ class Chess {
     }
 
     abstract class State {
-        companion object {
+        private companion object {
             private val turnPattern = Regex("^([a-h][1-8]){2}|exit$")
         }
         abstract var isExit: Boolean
-        protected abstract val color: String
-        protected abstract val initialRank: Int
         abstract var playerName: String
         abstract val pawns: MutableList<Position>
         protected var captured: Position? = null
@@ -44,16 +42,13 @@ class Chess {
                 println("Invalid Input")
                 return false
             }
-            val start = Position(s[0], s[1].toString().toInt())
-            if (!pawns.contains(start)) {
-                println("No $color pawn at $start")
-                return false
-            }
             return true
         }
 
         fun readTurn() {
             do {
+                isExit = next().isWin() || isStalemate()
+                if (isExit) break
                 println("$playerName's turn:")
                 val turn = readln()
                 val isValid = isValid(turn)
@@ -67,15 +62,31 @@ class Chess {
             } while (!isValid)
         }
 
+        abstract fun isPossibleTurn(start: Position): Boolean
+
+        abstract fun isWin(): Boolean
+        private fun isStalemate(): Boolean {
+            for (pawn in pawns) {
+                if (isPossibleTurn(pawn)) {
+                    return false
+                }
+            }
+            println("Stalemate!")
+            return true
+        }
+
         abstract fun next(): State
     }
 
     private class FirstPlayer: State() {
+        private companion object {
+            const val INITIAL_RANK: Int = 2
+            const val LAST_OPPOSITE_RANK: Int = 8
+        }
         override var isExit: Boolean = false
-        override val color = "white"
-        override val initialRank: Int = 2
         override var playerName: String = "First Player"
-        override val pawns: MutableList<Position> = (MIN_FILE..MAX_FILE).map { Position(it, 2) }.toMutableList()
+        override val pawns: MutableList<Position> =
+            (MIN_FILE..MAX_FILE).map { Position(it, INITIAL_RANK) }.toMutableList()
         override fun next(): State = secondPlayer
 
         override fun isValid(s: String): Boolean {
@@ -83,32 +94,36 @@ class Chess {
                 if (isExit) return true
                 val start = Position(s[0], s[1].toString().toInt())
                 val end = Position(s[2], s[3].toString().toInt())
+                if (!pawns.contains(start)) {
+                    println("No white pawn at $start")
+                    return false
+                }
                 if (start.file == end.file) {
                     // move forward
                     val diff = end.rank - start.rank
                     val isBusyPos = next().pawns.contains(end)
                             || next().pawns.contains(Position(end.file, end.rank - 1))
-                    if (!isBusyPos && (1 == diff || (start.rank == initialRank && 2 == diff))) {
+                    if (!isBusyPos && (1 == diff || (start.rank == INITIAL_RANK && 2 == diff))) {
                         return true
                     }
                 } else if (end.file - 1 == start.file && end.rank - 1 == start.rank) {
-                    // capture left
-                    if (next().pawns.contains(end)) {
-                        captured = end
-                        return true
-                    }
-                    // en passant left
-                    if (next().enPassant?.rank == start.rank && next().enPassant?.file == end.file) {
-                        captured = next().enPassant
-                        return true
-                    }
-                } else if (end.file + 1 == start.file && end.rank - 1 == start.rank) {
                     // capture right
                     if (next().pawns.contains(end)) {
                         captured = end
                         return true
                     }
                     // en passant right
+                    if (next().enPassant?.rank == start.rank && next().enPassant?.file == end.file) {
+                        captured = next().enPassant
+                        return true
+                    }
+                } else if (end.file + 1 == start.file && end.rank - 1 == start.rank) {
+                    // capture left
+                    if (next().pawns.contains(end)) {
+                        captured = end
+                        return true
+                    }
+                    // en passant left
                     if (next().enPassant?.rank == start.rank && next().enPassant?.file == end.file) {
                         captured = next().enPassant
                         return true
@@ -119,40 +134,77 @@ class Chess {
             }
             return false
         }
+
+        override fun isWin(): Boolean {
+            if (next().pawns.isEmpty()) {
+                println("White Wins!")
+                return true
+            }
+            for (pawn in pawns) {
+                if (pawn.rank == LAST_OPPOSITE_RANK) {
+                    println("White Wins!")
+                    return true
+                }
+            }
+            return false
+        }
+
+        override fun isPossibleTurn(start: Position): Boolean {
+            // move forward
+            var end = Position(start.file, start.rank + 1)
+            if (end !in next().pawns) {
+                return true
+            }
+            // capture left
+            end = Position(start.file - 1, start.rank + 1)
+            if (end in next().pawns) {
+                return true
+            }
+            // en passant left
+            if (next().enPassant?.rank == start.rank && next().enPassant?.file == end.file) {
+                return true
+            }
+            // capture right
+            end = Position(start.file + 1, start.rank + 1)
+            if (end in next().pawns) {
+                return true
+            }
+            // en passant right
+            if (next().enPassant?.rank == start.rank && next().enPassant?.file == end.file) {
+                return true
+            }
+            return false
+        }
     }
 
     private class SecondPlayer: State() {
+        private companion object {
+            const val INITIAL_RANK: Int = 7
+            const val LAST_OPPOSITE_RANK: Int = 1
+        }
         override var isExit: Boolean = false
-        override val color = "black"
-        override val initialRank: Int = 7
         override var playerName: String = "Second Player"
-        override val pawns: MutableList<Position> = (MIN_FILE..MAX_FILE).map { Position(it, 7) }.toMutableList()
+        override val pawns: MutableList<Position> =
+            (MIN_FILE..MAX_FILE).map { Position(it, INITIAL_RANK) }.toMutableList()
         override fun next(): State = firstPlayer
         override fun isValid(s: String): Boolean {
             if (super.isValid(s)) {
                 if (isExit) return true
                 val start = Position(s[0], s[1].toString().toInt())
                 val end = Position(s[2], s[3].toString().toInt())
+                if (!pawns.contains(start)) {
+                    println("No black pawn at $start")
+                    return false
+                }
                 if (start.file == end.file) {
                     // move forward
                     val diff = start.rank - end.rank
                     val isBusyPos = next().pawns.contains(end)
                             || next().pawns.contains(Position(end.file, end.rank + 1))
-                    if (!isBusyPos && (1 == diff || (start.rank == initialRank && 2 == diff))) {
+                    if (!isBusyPos && (1 == diff || (start.rank == INITIAL_RANK && 2 == diff))) {
                         return true
                     }
                 } else if (end.file - 1 == start.file && end.rank + 1 == start.rank) {
-                    // capture left
-                    if (next().pawns.contains(end)) {
-                        captured = end
-                        return true
-                    }
-                    // en passant left
-                    if (next().enPassant?.rank == start.rank && next().enPassant?.file == end.file) {
-                        captured = next().enPassant
-                        return true
-                    }
-                } else if (end.file + 1 == start.file && end.rank + 1 == start.rank) {
                     // capture right
                     if (next().pawns.contains(end)) {
                         captured = end
@@ -163,9 +215,61 @@ class Chess {
                         captured = next().enPassant
                         return true
                     }
+                } else if (end.file + 1 == start.file && end.rank + 1 == start.rank) {
+                    // capture left
+                    if (next().pawns.contains(end)) {
+                        captured = end
+                        return true
+                    }
+                    // en passant left
+                    if (next().enPassant?.rank == start.rank && next().enPassant?.file == end.file) {
+                        captured = next().enPassant
+                        return true
+                    }
                 }
                 println("Invalid Input")
                 return false
+            }
+            return false
+        }
+
+        override fun isWin(): Boolean {
+            if (next().pawns.isEmpty()) {
+                println("Black Wins!")
+                return true
+            }
+            for (pawn in pawns) {
+                if (pawn.rank == LAST_OPPOSITE_RANK) {
+                    println("Black Wins!")
+                    return true
+                }
+            }
+            return false
+        }
+
+        override fun isPossibleTurn(start: Position): Boolean {
+            // move forward
+            var end = Position(start.file, start.rank - 1)
+            if (end !in next().pawns) {
+                return true
+            }
+            // capture left
+            end = Position(start.file - 1, start.rank - 1)
+            if (end in next().pawns) {
+                return true
+            }
+            // en passant left
+            if (next().enPassant?.rank == start.rank && next().enPassant?.file == end.file) {
+                return true
+            }
+            // capture right
+            end = Position(start.file + 1, start.rank - 1)
+            if (end in next().pawns) {
+                return true
+            }
+            // en passant right
+            if (next().enPassant?.rank == start.rank && next().enPassant?.file == end.file) {
+                return true
             }
             return false
         }
